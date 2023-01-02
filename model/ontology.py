@@ -9,82 +9,65 @@ class OntoKaire:
 
     def __init__(self):
         self.static = True
-   
-            
+               
     def init_dataset(self):
         if self.static:
             url_workers = gb.WORKERS_FILE
             url_env = gb.ENV_FILE
-            # load dataset into Pandas DataFrame
-            self.df_workers = pd.read_csv(url_workers, names=['id','timestamp','hrv','stressIndex','locationId'],skiprows=1)
-            self.df_env = pd.read_csv(url_env, names=['locationId','timestamp','temperature', 'humidity', 'noise','light'],skiprows=1)
+            self.df_workers = pd.read_csv(url_workers, names=['id','timestamp','hrv','stress_index','location_id'],skiprows=1)
+            self.df_env = pd.read_csv(url_env, names=['location_id','timestamp','temperature', 'humidity', 'noise','light'],skiprows=1)
         else:
             from mysqlDb import mysqlConn
             conn = mysqlConn()
             self.df_workers = pd.read_sql('SELECT * FROM history', conn)
             self.df_env = pd.read_sql('SELECT * FROM history', conn)
         
-        # Separating out the features and target
-        #self.worker_features = ['timestamp','id', 'hr', 'hrv', 'stressIndex','locationId']
-        #self.env_features = ['timestamp','locationId', 'temperature', 'humidity', 'noise','light']
-        #self.x = self.df_workers.loc[:, self.worker_features].values
-        #self.y = self.df_workers.loc[:,['classification']].values        
-        
     def compose_dataset(self):
-
-        #class hasTimestamp(DataProperty): # Each drug has a single cost
-        #    range     = [int]
-        
-        ##with open("C:\\_Workspace\\Kaire\\python\\operator_modified.csv",'w') as f:
         with open(gb.DATASET_PATH+"workers_ds.csv",'w') as f:
-            f.write("id,ts_min,ts_max,hrv_mean,hrv_sd,stressIndex,locationId\n")
+            f.write("id,ts_min,ts_max,hr,rmssd,sdrr,stress_index,location_id\n")
         url_workers = gb.WORKERS_FILE    
-        self.df_workers = pd.read_csv(url_workers, names=['id','timestamp','hrv','stressIndex','locationId'],skiprows=1)
-        self.df_workers = self.df_workers.sort_values(by =['id','timestamp','locationId','stressIndex'])
+        self.df_workers = pd.read_csv(url_workers, names=['id','timestamp','hr','rmssd','sdrr','stress_index','location_id'],skiprows=1)
+        self.df_workers = self.df_workers.sort_values(by =['id','timestamp','location_id','stress_index'])
         #print(tabulate(self.df_workers,headers='keys',tablefmt='psql',showindex=False))
-        id_prev = id_curr = ts_min = ts_max = hrv_min = hrv_max = hrv_sd = sd_avg = sd_sum = 0
-        
-        hrv_list = prev_row = []
+        id_prev = id_curr = ts_min = ts_max = rmssd_mean = sdrr_mean = hr_mean = 0
+        prev_row = []
+        hr_list = []        
+        rmssd_list = []
+        sdrr_list = []
         
         for i,row in self.df_workers.iterrows():
-            #print(i)
             id_curr = int(row['id'])
 
             if (len(self.df_workers)-1) != i and i > 1:
-                if (int(getattr(row, 'id')) != int(getattr(prev_row, 'id'))) or (int(getattr(row, 'id')) == int(getattr(prev_row, 'id')) and int(getattr(row, 'stressIndex')) != int(getattr(prev_row, 'stressIndex'))) or (int(getattr(row, 'id')) == int(getattr(prev_row, 'id')) and int(getattr(row, 'timestamp')) - ts_min > 1800):
+                if (int(getattr(row, 'id')) != int(getattr(prev_row, 'id'))) or (int(getattr(row, 'id')) == int(getattr(prev_row, 'id')) and int(getattr(row, 'stress_index')) != int(getattr(prev_row, 'stress_index'))) or (int(getattr(row, 'id')) == int(getattr(prev_row, 'id')) and int(getattr(row, 'timestamp')) - ts_min > 1800):
                     ts_max = int(prev_row['timestamp'])
-                    sd_avg = round(sum(hrv_list) / len(hrv_list),4)
-                    for x in hrv_list:
-                        sd_sum += (x - sd_avg) ** 2
-                    hrv_sd = round(math.sqrt(sd_sum/len(hrv_list)),4)
+                    if ts_max == ts_min:
+                        ts_max = int(row['timestamp']) -10
+                    rmssd_mean = int(round(sum(rmssd_list) / len(rmssd_list),4))
+                    sdrr_mean = int(round(sum(sdrr_list) / len(sdrr_list),4))
+                    hr_mean = int(round(sum(hr_list) / len(hr_list),4))
+                    
                     with open(gb.DATASET_PATH+"workers_ds.csv",'a') as f:
-                        f.write(str(id_curr) + "," + str(ts_min) + "," + str(ts_max) + "," + str(sd_avg) + "," + str(hrv_sd) + "," + str(int(row['stressIndex'])) + "," + str(int(row['locationId'])) + "\n")
-                    hrv_list = []
+                        f.write(str(id_curr) + "," + str(ts_min) + "," + str(ts_max) + "," + str(hr_mean) + "," + str(rmssd_mean) + "," + str(sdrr_mean) + "," + str(int(row['stress_index'])) + "," + str(int(row['location_id'])) + "\n")
+                    hr_list = []
+                    sdrr_list = []
+                    rmssd_list = []
                     
                 if (int(getattr(row, 'id')) == int(getattr(prev_row, 'id'))):
-                    #print(str(hrv_min) +" > "+ str(float(getattr(row, 'hrv'))))
-                    hrv_list.append(float(row['hrv']))
-                    if hrv_min > int(getattr(prev_row, 'id')):
-                        #print(str(hrv_min) +" > "+ str(float(row[3])))
-                        hrv_min = float(row['hrv'])
-                    if  hrv_max < float(row['hrv']):
-                        hrv_max = float(row['hrv'])
+                    hr_list.append(float(row['hr']))
+                    rmssd_list.append(float(row['rmssd']))
+                    sdrr_list.append(float(row['sdrr']))
                         
-            if (i == 0) or (int(getattr(row, 'id')) != int(getattr(prev_row, 'id'))) or (int(getattr(row, 'id')) == int(getattr(prev_row, 'id')) and int(getattr(row, 'stressIndex')) != int(getattr(prev_row, 'stressIndex'))) or (int(getattr(row, 'id')) == int(getattr(prev_row, 'id')) and int(getattr(row, 'timestamp')) - ts_min > 1800):
+            if (i == 0) or (int(getattr(row, 'id')) != int(getattr(prev_row, 'id'))) or (int(getattr(row, 'id')) == int(getattr(prev_row, 'id')) and int(getattr(row, 'stress_index')) != int(getattr(prev_row, 'stress_index'))) or (int(getattr(row, 'id')) == int(getattr(prev_row, 'id')) and int(getattr(row, 'timestamp')) - ts_min > 1800):
                 id_prev = id_curr
                 ts_min = int(row['timestamp'])  
-                hrv_min = float(row['hrv'])
-                hrv_max = float(row['hrv'])
-                #print(str(hrv_min) +" e "+ str(hrv_max))
-                hrv_list = [float(row['hrv'])]
-
             prev_row = row
             
     def compose_envdataset(self):
-        df_env = pd.read_csv(gb.ENV_FILE, names=['locationId','timestamp','temperature', 'humidity', 'noise', 'light'],skiprows=1)        
-        df_env = df_env.sort_values(by =['locationId','timestamp'])
+        df_env = pd.read_csv(gb.ENV_FILE, names=['location_id','timestamp','temperature', 'humidity', 'noise', 'light'],skiprows=1)        
+        df_env = df_env.sort_values(by =['location_id','timestamp'])
         with open(gb.DATASET_PATH+"environment_ds.csv",'w') as f:
-            f.write("locationId,ts_min,ts_max,temperature,humidity,noise,light\n")
+            f.write("location_id,ts_min,ts_max,temperature,humidity,noise,light\n")
         for i,row in df_env.iterrows():
             if (i == 0):
                 ts_min = int(row['timestamp'])
@@ -92,14 +75,16 @@ class OntoKaire:
                 hum = int(row['humidity'])
                 noise = int(row['noise'])
                 light = int(row['light']) 
-            elif (int(getattr(row, 'locationId')) != int(getattr(prev_row, 'locationId')) and i > 1) or (int(getattr(row, 'locationId')) == int(getattr(prev_row, 'locationId')) and int(getattr(row, 'temperature')) != int(getattr(prev_row, 'temperature'))) or (int(getattr(row, 'locationId')) == int(getattr(prev_row, 'locationId')) and int(getattr(row, 'humidity')) != int(getattr(prev_row, 'humidity'))) or (int(getattr(row, 'locationId')) == int(getattr(prev_row, 'locationId')) and int(getattr(row, 'noise')) != int(getattr(prev_row, 'noise'))) or (int(getattr(row, 'locationId')) == int(getattr(prev_row, 'locationId')) and int(getattr(row, 'light')) != int(getattr(prev_row, 'light'))) or (int(getattr(row, 'locationId')) == int(getattr(prev_row, 'locationId')) and (int(getattr(row, 'timestamp')) - ts_min) > 28800):
+            elif (int(getattr(row, 'location_id')) != int(getattr(prev_row, 'location_id')) and i > 1) or (int(getattr(row, 'location_id')) == int(getattr(prev_row, 'location_id')) and int(getattr(row, 'temperature')) != int(getattr(prev_row, 'temperature'))) or (int(getattr(row, 'location_id')) == int(getattr(prev_row, 'location_id')) and int(getattr(row, 'humidity')) != int(getattr(prev_row, 'humidity'))) or (int(getattr(row, 'location_id')) == int(getattr(prev_row, 'location_id')) and int(getattr(row, 'noise')) != int(getattr(prev_row, 'noise'))) or (int(getattr(row, 'location_id')) == int(getattr(prev_row, 'location_id')) and int(getattr(row, 'light')) != int(getattr(prev_row, 'light'))) or (int(getattr(row, 'location_id')) == int(getattr(prev_row, 'location_id')) and (int(getattr(row, 'timestamp')) - ts_min) > 28800):
                 ts_max = int(prev_row['timestamp'])
+                if ts_max == ts_min:
+                    ts_max = int(row['timestamp']) -10
                 temp = int(prev_row['temperature'])                    
                 hum = int(prev_row['humidity'])
                 noise = int(prev_row['noise'])
                 light = int(prev_row['light']) 
                 with open(gb.DATASET_PATH+"environment_ds.csv",'a') as f:
-                    f.write(str(int(prev_row['locationId'])) + "," + str(ts_min) + "," + str(ts_max) + "," + str(temp) + "," + str(hum) + "," + str(noise) + "," + str(light) + "\n")
+                    f.write(str(int(prev_row['location_id'])) + "," + str(ts_min) + "," + str(ts_max) + "," + str(temp) + "," + str(hum) + "," + str(noise) + "," + str(light) + "\n")
                 ts_min = int(row['timestamp'])  
                 temp = int(row['temperature'])                    
                 hum = int(row['humidity'])
@@ -110,8 +95,8 @@ class OntoKaire:
     def create_ontology(self):
         kaire_world = World()
         onto = kaire_world.get_ontology("file://model//onto.owl").load()
-        df = pd.read_csv(gb.DATASET_PATH+"workers_ds.csv", names=['id','ts_min','ts_max','hrv_mean','hrv_sd','stressIndex','locationId'],skiprows=1)        
-        df_env = pd.read_csv(gb.DATASET_PATH+"environment_ds.csv", names=['locationId','ts_min','ts_max','temperature','humidity','noise','light'],skiprows=1)        
+        df = pd.read_csv(gb.DATASET_PATH+"workers_ds.csv", names=['id','ts_min','ts_max','hr','rmssd','sdrr','stress_index','location_id'],skiprows=1)        
+        df_env = pd.read_csv(gb.DATASET_PATH+"environment_ds.csv", names=['location_id','ts_min','ts_max','temperature','humidity','noise','light'],skiprows=1)        
  
         with onto:
             print(onto.search(is_a = onto.Context, type = onto.Context))
@@ -134,53 +119,42 @@ class OntoKaire:
             for i,row in df.iterrows():
                 individualName = "Context" + str(i)
                 if i > 0:
-                    worker = onto.Worker(individualName, namespace = onto, hasId = [int(row['id'])], hasTsMin = [int(row['ts_min'])], hasTsMax = [int(row['ts_max'])], hasHRV = [float(row['hrv_mean'])], hasHRVsd = [float(row['hrv_sd'])], hasStressIndex = [int(row['stressIndex'])], hasLocationId = [int(row['locationId'])])
+                    worker = onto.Worker(individualName, namespace = onto, hasId = [int(row['id'])], hasTsMin = [int(row['ts_min'])], hasTsMax = [int(row['ts_max'])], hasHR = [float(row['hr'])], hasRMSSD = [float(row['rmssd'])], hasSDRR = [float(row['sdrr'])], hasStressIndex = [int(row['stress_index'])], hasLocationId = [int(row['location_id'])])
             
             for i,row in df_env.iterrows():
                 individualName = "EnvContext" + str(i)
                 if i > 0:
-                    env = onto.Workplace(individualName, namespace = onto, hasLocationId = [int(row['locationId'])], hasTsMin = [int(row['ts_min'])], hasTsMax = [int(row['ts_max'])], hasCelsius = [int(row['temperature'])], hasHumPercent = [int(row['humidity'])], hasDecibels = [int(row['noise'])],hasLux = [int(row['light'])])
-
-            onto.save(file = "OntokaireEvaluation_Sim.owl")
-            
-        ###reasoner            
+                    env = onto.Workplace(individualName, namespace = onto, hasLocationId = [int(row['location_id'])], hasTsMin = [int(row['ts_min'])], hasTsMax = [int(row['ts_max'])], hasCelsius = [int(row['temperature'])], hasHumPercent = [int(row['humidity'])], hasDecibels = [int(row['noise'])],hasLux = [int(row['light'])])
+            onto_path.append("model/")
+            onto.save(file = "model/OntokaireEvaluation_Sim.owl")
+                
             self.create_rules()
             
             sync_reasoner_pellet(kaire_world,infer_property_values = True, infer_data_property_values = True, debug = 20)
             
-            #print('############### SEARCH ###############')
-            #stressors = self.onto.search(hasStressIndex = 4)
-            #for stressor in stressors:
-            #    print("############ Stressor: ", stressor)
-            
             print('############### SPARQL ###############')
             arr = (list(kaire_world.sparql(gb.CQ7)))
-            #print(tabulate(arr,headers=['id','stress','locationId','activity','timestamp','duration','day','hour','hrv_mean','hrv_sd','stressorId','shared_time','env_cond','cond'],tablefmt='github',showindex=False))
+            #print(tabulate(arr,headers=['id','stress','location_id','activity','timestamp','duration','day','hour','hr','rmssd','sdrr','stressor_id','shared_time','env_cond','cond'],tablefmt='github',showindex=False))
 
             for a in arr:
                 with open(gb.DATASET_PATH+"reasoner_ds.csv",'a') as f:
-                    f.write(str(a[0]) + "," + str(a[1]) + "," + str(a[2]) + "," + str(a[3]) + "," + str(a[4]) + "," + str(a[5]) + "," + str(a[6]) +  "," + str(a[7]) + "," + str(a[8]) + "," + str(a[9]) + "," + str(a[10]).replace("None","0") + "," + str(a[11]).replace("None","0") + "," + str(a[12]) + "," + str(a[13]).replace("None","0").replace("onto.","") + "\n")
+                    f.write(str(a[0]) + "," + str(a[1]) + "," + str(a[2]) + "," + str(a[3]) + "," + str(a[4]) + "," + str(a[5]) + "," + str(a[6]) +  "," + str(a[7]) + "," + str(a[8]) + "," + str(a[9]) + "," + str(a[10]) + "," + str(a[11]).replace("None","0") + "," + str(a[12]).replace("None","0") + "," + str(a[13]).replace("None","0") + "," + str(a[14]).replace("None","0").replace("onto.","") + "\n")
             
             arr = (list(kaire_world.sparql(gb.CQ8)))
-            print(tabulate(arr,headers=['locationId','timestamp','day','hour','id','stress','shared_time'],tablefmt='github',showindex=False))
+            #print(tabulate(arr,headers=['location_id','timestamp','day','hour','id','stress','shared_time'],tablefmt='github',showindex=False))
             for a in arr:
                 with open(gb.DATASET_PATH+"group_ds.csv",'a') as f:
                     f.write(str(a[0]) + "," + str(a[1]) + "," + str(a[2]) + "," + str(a[3]) + "," + str(a[4]) + "," + str(a[5]) + "," + str(a[6]) + "\n")
         close_world(onto)
         
     def reasoner(self):
-        #onto = get_ontology("file://OntokaireEvaluation_Sim.owl").load()
+        onto = get_ontology("file://OntokaireEvaluation_Sim.owl").load()
         with onto:
             
             self.create_rules()
             
             sync_reasoner_pellet(infer_property_values = True, infer_data_property_values = True, debug = 20)
             prin(list(default_world.inconsistent_classes()))
-            
-            #print('############### SEARCH ###############')
-            #stressors = self.onto.search(hasStressIndex = 4)
-            #for stressor in stressors:
-            #    print("############ Stressor: ", stressor)
             
             print('############### SPARQL ###############')
             arr = (list(default_world.sparql(gb.CQ7)))
@@ -215,7 +189,7 @@ class OntoKaire:
         R_TsDate = Imp().set_as_rule("""Context(?c), hasTsMin(?c, ?ts), mod(?m, ?ts, 864000), subtract(?h, ?ts, ?m) -> hasTsDate(?c, ?h)""")
         R_Ts5min = Imp().set_as_rule("""Context(?c), hasTsMin(?c, ?ts), mod(?m, ?ts, 300), subtract(?h, ?ts, ?m) -> hasTs5min(?c, ?h)""")
         R_Hour = Imp().set_as_rule("""Context(?c) , hasTsMin(?c, ?ts) , mod(?m, ?ts, 86400) , integerDivide(?h, ?m, 3600) -> hasHour(?c, ?h)""") 
-        R_DayOfWeek = Imp().set_as_rule("""Context(?c), hasTsMin(?c, ?ts), divide(?r, ?ts, 86400), floor(?f, ?r) , add(?a, ?f, 4) , mod(?d, ?a, 7) -> hasDayOfWeek(?c, ?d)""")
+        R_Weekday = Imp().set_as_rule("""Context(?c), hasTsMin(?c, ?ts), divide(?r, ?ts, 86400), floor(?f, ?r) , add(?a, ?f, 4) , mod(?d, ?a, 7) -> hasWeekday(?c, ?d)""")
         R_Duration = Imp().set_as_rule("""hasTsMax(?c, ?max), hasTsMin(?c, ?min), subtract(?d, ?max, ?min) -> hasDuration(?c, ?d)""")
         
         #Rules for Enviroment

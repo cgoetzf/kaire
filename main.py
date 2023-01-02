@@ -18,8 +18,10 @@ def __init__():
     ini = int(pd.Timestamp.now().timestamp())
     print(ini)
     #simulation()
-    #prediction()
-    test()
+    prediction()
+    #test()
+    identifier = si.StressorIdentifier()
+    identifier.calculate_gsi()
     end = int(pd.Timestamp.now().timestamp())
     total = end - ini
     print("\nRuntime: " + str(total) + "seconds or " + str(int(total/60)) + " minutes! \n")
@@ -33,7 +35,7 @@ def simulation():
     simulator = s.Simulator()
     simulator.reset_files()          
     for d in range(3):
-        simulator.init_time = pd.Timestamp(datetime(2021, 5, d+1))
+        simulator.init_time = pd.Timestamp(datetime(2022, d+1, 3))
         simulator.env()
         simulator.run()
         onto = o.OntoKaire()
@@ -49,15 +51,16 @@ def simulation():
 
 def prediction():
     z = p.Predictor()
-    z.line_graph()
+    #z.line_graph()
     print("#### Non Standardized \n")
     z.init_dataset()
     z.reduce_dimension()
+    #z.loocv_predict()
     z.split_dataset(0.3)
     z.svm_predict()
     z.rf_predict()
     z.show_metrics()
-    z.show_graph_nonstd()
+    #z.show_graph_nonstd()
 
     print("#### Standardized \n")
     z.init_dataset()
@@ -67,10 +70,10 @@ def prediction():
     z.svm_predict()
     z.rf_predict()
     z.show_metrics()
-    z.show_graph_std()
+    #z.show_graph_std()
 
-    z.show_confusion_matrix()
-    z.show_probability()
+    #z.show_confusion_matrix()
+    #z.show_probability()
 
     #advisor = a.Advisor()
     #advisor.prediction()

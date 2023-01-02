@@ -71,23 +71,24 @@ class Industry:
             else:
                 self.isOpened = False
             yield env.timeout(300)
-            #match self.weekday:
-            #    case 0:
-            #        print("It's Monday and opened!")
-            #    case 1:
-            #        print("It's Thuesday!")
-            #    case 2:
-            #        print("It's Wednesday!")
-            #    case 3:
-            #        print("It's Thursday!")
-            #    case 4:
-            #        print("It's Friday!")
-            #    case 5:
-            #        print("It's Saturday! Industry is closed!")
-            #    case 6:
-            #       print("It's Sunday! Go to the Mass!")
-            #    case _:
-            #        print("Something's wrong!")
+            if False:
+                match self.weekday:
+                    case 0:
+                        print("Monday! Industry is opened!")
+                    case 1:
+                        print("Thuesday! Industry is opened!")
+                    case 2:
+                        print("Wednesday! Industry is opened!")
+                    case 3:
+                        print("Thursday! Industry is opened!")
+                    case 4:
+                        print("Friday! Industry is opened!")
+                    case 5:
+                        print("Saturday! Industry is closed!")
+                    case 6:
+                       print("Sunday! Go to the Mass!")
+                    case _:
+                        print("Something's wrong!")
             
             
     def data_collection(self, env):
@@ -129,24 +130,28 @@ class Industry:
                 self.location3_hum += random.randrange(0,1)
             yield env.timeout(3600)
             
-#retirar yield do que não é processo
 def quality_assurance(worker,supervisor):
     qa_level = 0.9
+    time = 600
+    if gb.DEBUG:
+        print(supervisor.name + " evaluates " + worker.name + "'s work!")
     while qa_level < 1:
         qa_level = 1.1
         qa_level = random.gauss(qa_level, 50)
-        #supervisor.walk(supervisor.locationId,worker.locationId)
         if qa_level > 1:
             qa_level = 1.1
-            worker.ibi_normal()
+            worker.rr_normal()
             worker.stressIndex = 0
-            #env.timeout(1200)
+            time += 300
+            if gb.DEBUG:
+                print(worker.name + " pass in the quality assurance!")
         else:
             qa_level = 1.1
-            worker.ibi_stress()
+            worker.rr_stress()
             worker.stressIndex = 1
-            #env.timeout(1200)
-    #supervisor.walk(supervisor.locationId,6)
+            if gb.DEBUG:
+                print(worker.name + " doesn't pass in the quality assurance!")
+    return time
 
 def component1_process(env, industry, worker, supervisor):
     while True:
@@ -154,50 +159,77 @@ def component1_process(env, industry, worker, supervisor):
         if industry.isOpened:
             worker.walk(1)
             yield industry.feedstock_1.get(1)
-            worker.walk(1)
-            operation_time = max(random.gauss(1800, 300), 3000)
+            worker.walk(2)
+            operation_time = random.randrange(600,900)
             industry.location2_noise += min(random.randrange(10,20),80)
             yield env.timeout(operation_time)
             industry.location2_noise -= min(random.randrange(10,20),70)
-            quality_assurance(worker, supervisor)
+            supervisor.walk(worker.locationId)
+            yield env.timeout(quality_assurance(worker, supervisor))
+            supervisor.walk(6)
             worker.walk(1)
             yield industry.componenet1_stock.put(1)
             worker.walk(2)
-            #print(worker.name + ' made a componenet 1!')
+            if gb.DEBUG:
+                print(worker.name + ' made a componenet 1!')
         yield env.timeout(1800)    
 
 def component2_process(env, industry, worker, supervisor):
     while True:
         if industry.isOpened:
-            #print('Industry Working {0}'.format(industry.isOpened))
             worker.walk(1)
             yield industry.feedstock_2.get(1)
             worker.walk(3)
-            operation_time = max(random.gauss(2500, 500),5000)
+            operation_time = random.randrange(300,600)
             industry.location3_noise +=  min(random.randrange(10,20),80)
             yield env.timeout(operation_time)
             industry.location3_noise -=  min(random.randrange(10,20),70)
-            quality_assurance(worker, supervisor)
+            supervisor.walk(worker.locationId)
+            yield env.timeout(quality_assurance(worker, supervisor))
+            supervisor.walk(6)
             worker.walk(1)
             yield industry.componenet2_stock.put(1)
             worker.walk(3)
-            #print(worker.name + ' made a componenet 2!')
+            if gb.DEBUG:
+                print(worker.name + ' made a componenet 2!')
         yield env.timeout(2500)
         
 def assembly_process(env, industry, worker,supervisor):
     while True:
         if industry.isOpened:
-            worker.walk(1)
-            yield industry.componenet2_stock.get(1)
-            yield industry.componenet1_stock.get(2)
+            worker.walk(2)
+            while industry.componenet1_stock.level == 0:
+                print('No stock 1!')
+                if worker.id == 5:
+                    worker.rr_stress()
+                yield env.timeout(300)
+            if industry.componenet1_stock.level > 0:
+                print('Yes! stock 1 OK!')
+                if worker.id == 5:
+                    worker.rr_normal()
+            yield industry.componenet1_stock.get(1)
+            worker.walk(3)
+            while industry.componenet2_stock.level == 0:
+                print('No stock 2!')
+                if worker.id == 6:
+                    worker.rr_stress()
+                yield env.timeout(300)
+            if industry.componenet2_stock.level > 1:
+                print('Yes! stock 2 OK!')
+                if worker.id == 6:
+                    worker.rr_normal()
+            yield industry.componenet2_stock.get(2)
             worker.walk(4)
-            operation_time = max(random.gauss(3600, 200), 6000)
+            operation_time = random.randrange(1800, 2400)
             yield env.timeout(operation_time)
-            quality_assurance(worker, supervisor)
+            supervisor.walk(worker.locationId)
+            yield env.timeout(quality_assurance(worker, supervisor))
+            supervisor.walk(6)
             worker.walk(5)
             yield industry.dispatch.put(1)
             worker.walk(4)
-            #print(worker.name + ' finished a product!')
+            if gb.DEBUG:
+                print(worker.name + ' finished a product!')
         yield env.timeout(3600)
         
 def supervision_process(env, industry, supervisor, workers):
@@ -208,17 +240,17 @@ def supervision_process(env, industry, supervisor, workers):
         if (day == 1 and hour == 10 ) or (day ==3 and hour == 14):
             workers[0].walk(6)
             workers[1].walk(6)
-            workers[0].ibi_stress()
+            workers[0].rr_stress()
             workers[0].stressIndex = 1            
             if (day == 1 and hour == 10 ):
-                workers[1].ibi_stress()
+                workers[1].rr_stress()
                 workers[1].stressIndex = 1
             operation_time = random.randrange(1800, 3600)
             yield env.timeout(operation_time)
             workers[0].walk(2)
             workers[1].walk(2)
-            workers[0].ibi_normal()
-            workers[1].ibi_normal()
+            workers[0].rr_normal()
+            workers[1].rr_normal()
             workers[0].stressIndex = 0
             workers[1].stressIndex = 0
         if (day == 2 and hour == 10 ) or (day ==4 and hour == 14):
@@ -228,17 +260,25 @@ def supervision_process(env, industry, supervisor, workers):
             yield env.timeout(operation_time)
             workers[3].walk(3)
             workers[2].walk(3)            
-        if (day == 5 and hour == 15 ):
+        if (day == 2 and hour == 14) or (day == 5 and hour == 15):
             workers[4].walk(6)
             workers[5].walk(6)
             workers[6].walk(6)
-            workers[5].ibi_stress()
+            workers[5].rr_stress()
             workers[5].stressIndex = 1
+            if (day == 2 and hour == 14):
+                workers[4].rr_stress()
+                workers[4].stressIndex = 1
+            if (day == 5 and hour == 15):
+                workers[5].rr_stress()
+                workers[5].stressIndex = 1
             operation_time = random.randrange(1800, 3600)
             yield env.timeout(operation_time)
             workers[4].walk(3)
             workers[5].walk(3)
             workers[6].walk(3)
-            workers[5].ibi_normal()
+            workers[4].rr_normal()
+            workers[4].stressIndex = 0
+            workers[5].rr_normal()
             workers[5].stressIndex = 0
         yield env.timeout(3600)

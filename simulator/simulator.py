@@ -43,10 +43,10 @@ class Simulator:
  
         #inicializando arquivos
         with open(gb.WORKERS_FILE,'w') as f:
-                        f.write("id,timestamp,hrv,stressIndex,locationId\n")
+                        f.write("id,timestamp,hr,rmssd,sdrr,stress_index,location_id\n")
 
         with open(gb.ENV_FILE,'w') as f:
-                        f.write("locationId,timestamp,temperature,humidity,noise,light\n")
+                        f.write("location_id,timestamp,temperature,humidity,noise,light\n")
         
         with open(gb.DATASET_PATH+"line_ds.csv",'w') as f:
             f.write("id,stress,timestamp,hr,rmssd,sdrr,rr\n") 
@@ -114,35 +114,35 @@ class Simulator:
 
     def reset_files(self):
         with open(gb.DATASET_PATH+"reasoner_ds.csv",'w') as f:
-            f.write("id,stress,locationId,activity,timestamp,duration,day,hour,hrv_mean,hrv_sd,stressorId,shared_time,env_cond,cond\n")
+            f.write("id,stress,location_id,activity,timestamp,duration,day,hour,hr,rmssd,sdrr,stressor_id,shared_time,env_cond,cond\n")
         with open(gb.DATASET_PATH+"group_ds.csv",'w') as f:
-            f.write("locationId,timestamp,day,hour,id,stress,shared_time\n") 
+            f.write("location_id,timestamp,day,hour,id,stress,shared_time\n") 
             
     def remove_duplicates(self):
 
         print(f'Removing duplicates! \n')
 
-        df = pd.read_csv(gb.DATASET_PATH+"reasoner_ds.csv", names=['id','stress','locationId','activity','timestamp','duration','day','hour','hrv_mean','hrv_sd','stressorId','shared_time','env_cond','cond'],skiprows=1)         
+        df = pd.read_csv(gb.DATASET_PATH+"reasoner_ds.csv", names=['id','stress','location_id','activity','timestamp','duration','day','hour','hr','rmssd','sdrr','stressor_id','shared_time','env_cond','cond'],skiprows=1)         
         df = df.drop_duplicates()
         df.to_csv(gb.DATASET_PATH+"reasoner_ds.csv", index=False)
    
     def data_prediction(self):
         print(f'Creating dataset for classification! \n')
-        df = pd.read_csv(gb.DATASET_PATH+"reasoner_ds.csv", names=['id','stress','locationId','activity','timestamp','duration','day','hour','hrv_mean','hrv_sd','stressorId','shared_time','env_cond','cond'],skiprows=1)         
+        df = pd.read_csv(gb.DATASET_PATH+"reasoner_ds.csv", names=['id','stress','location_id','activity','timestamp','duration','day','hour','hr','rmssd','sdrr','stressor_id','shared_time','env_cond','cond'],skiprows=1)         
         
         df.insert(13,"classification", " ")
         for i,row in df.iterrows():
             if int(row['stress']) == 1:
-                if int(row['stressorId']) == 8:
+                if int(row['stressor_id']) == 8:
                    df._set_value(i,'classification',1)
                 else:
-                    df._set_value(i,'classification',0)
+                    df._set_value(i,'classification',1)
             else:
                 df._set_value(i,'classification',0)
                 
-        df = df.drop(columns=['timestamp','hrv_mean','hrv_sd','cond'])
+        df = df.drop(columns=['timestamp','hr','rmssd','sdrr','cond'])
 
-        df = df.groupby(['id','stress','locationId','activity','day','hour','stressorId','env_cond'])['shared_time'].mean().reset_index()
+        df = df.groupby(['id','stress','location_id','activity','day','hour','stressor_id','env_cond'])['shared_time'].mean().reset_index()
         print("#")
         print(df)
         print("#")
@@ -154,14 +154,14 @@ class Simulator:
         
     def data_training(self):
         print(f'Creating dataset for training! \n')
-        df = pd.read_csv(gb.DATASET_PATH+"reasoner_ds.csv", names=['id','stress','locationId','activity','timestamp','duration','day','hour','hrv_mean','hrv_sd','stressorId','shared_time','env_cond','cond'],skiprows=1)        
+        df = pd.read_csv(gb.DATASET_PATH+"reasoner_ds.csv", names=['id','stress','location_id','activity','timestamp','duration','day','hour','hr','rmssd','sdrr','stressor_id','shared_time','env_cond','cond'],skiprows=1)        
         df.insert(13,"classification", " ")
         for i,row in df.iterrows():
             if int(row['stress']) == 1:
-                if int(row['stressorId']) == 8:
+                if (int(row['stressor_id']) == 8) or (int(row['id']) == 5 and int(row['location_id']) == 2) or (int(row['id']) == 6 and int(row['location_id']) == 3) or (int(row['id']) == 3 and int(row['location_id']) == 3 and (int(row['hour']) <= 9) and (int(row['day']) == 2 or int(row['day']) == 5)):
                    df._set_value(i,'classification',1)
                 else:
-                    df._set_value(i,'classification',0)
+                    df._set_value(i,'classification',1)
             else:
                 df._set_value(i,'classification',0)
         df.to_csv(gb.DATASET_PATH+"training_ds.csv", index=False)

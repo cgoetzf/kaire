@@ -1,5 +1,6 @@
-global CODE_PATH,DATASET_PATH,INFLUX_USER,INFLUX_PASS,INFLUX_URI,INFLUX_ORG,INFLUX_TOKEN,INFLUX_BUCKET,MYSQL_HOST,MYSQL_DB,MYSQL_USER,MYSQL_PASS,JAVA_PATH,CQ1,CQ2,CQ3,CQ5,CQ6
+global DEBUG,CODE_PATH,DATASET_PATH,INFLUX_USER,INFLUX_PASS,INFLUX_URI,INFLUX_ORG,INFLUX_TOKEN,INFLUX_BUCKET,MYSQL_HOST,MYSQL_DB,MYSQL_USER,MYSQL_PASS,JAVA_PATH,CQ1,CQ2,CQ3,CQ5,CQ6,CQ7,CQ8,WEEKDAYS
 
+DEBUG = False
 #DIRECTORIES PATHS
 CODE_PATH = "C:\\OneDrive\\Estudos\\Mestrado\\Dissertation\\Code\\python\\"
 DATASET_PATH = "C:\\_Workspace\\Kaire\\python\\ds\\"
@@ -27,14 +28,15 @@ MYSQL_DB = "kaire"
 MYSQL_USER = "root"
 MYSQL_PASS = "admin"
 
+WEEKDAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
+SECTORS = ["","Warehouse","Sector 1","Sector 2","Assembly Sector","Final Stock","Supervisor Room"]
 
 #HRV PARAMETERS
-global COEFFICIENT,IBI_MIN_NORMAL,IBI_MAX_NORMAL,IBI_MIN,IBI_MAX
-COEFFICIENT = 10
-IBI_MIN_NORMAL = 750
-IBI_MAX_NORMAL = 850
-IBI_MIN_STRESS = 775
-IBI_MAX_STRESS = 800
+global RR_MIN_NORMAL,RR_MAX_NORMAL,RR_MIN,RR_MAX
+RR_MIN_NORMAL = 700
+RR_MAX_NORMAL = 850
+RR_MIN_STRESS = 750
+RR_MAX_STRESS = 800
 
 
 #SPARQL QUERIES
@@ -45,7 +47,7 @@ SELECT ?worker ?psychoCondition ?location ?day ?hour ?stressor
 WHERE {
     ?context a :Worker . ?context :targets ?worker . ?context :locatedAt ?location .
     ?context :feels ?psychoCondition . ?context :stressedBy ?stressor .
-     ?context :hasDayOfWeek ?day . ?context :hasHour ?hour
+     ?context :hasWeekday ?day . ?context :hasHour ?hour
 }
 ORDER BY ?worker
 """
@@ -113,22 +115,25 @@ ORDER BY ?workgroup ?id
 CQ7 = """
 PREFIX : <http://www.semanticweb.org/carlos/ontologies/2022/1/kaire#>
 SELECT 
-   ?id ?stress ?locationId ?activity ?timestamp ?duration ?day ?hour ?hrv_mean ?hrv_sd ?stressorId ?shared_time ?env_cond ?cond
+   ?id ?stress ?location_id ?activity ?timestamp ?duration ?day ?hour ?hr ?rmssd ?sdrr ?stressor_id ?shared_time ?env_cond ?cond ?contextStressor ?timestamp ?tsMax ?tsMinStressor ?tsMaxStressor
 WHERE {
-    ?context :hasId ?id . ?context a :Worker . ?context :targets ?worker . ?context :hasLocationId ?locationId .
-    ?context :hasDuration ?duration . ?context :hasDayOfWeek ?day . ?context :hasHour ?hour .
+    ?context :hasId ?id . ?context a :Worker . ?context :targets ?worker . ?context :hasLocationId ?location_id .
+    ?context :hasDuration ?duration . ?context :hasWeekday ?day . ?context :hasHour ?hour .
     ?context :hasTsMin ?timestamp .	?context :hasTsMax ?tsMax . ?context :performs ?task . 
-    ?context :hasHRV ?hrv_mean . ?context :hasHRVsd ?hrv_sd . ?context :hasStressIndex ?stress .
+    ?context :hasHR ?hr . ?context :hasRMSSD ?rmssd . ?context :hasSDRR ?sdrr . ?context :hasStressIndex ?stress .
     OPTIONAL {
-        ?context :stressedBy ?stressor . ?context :stressedByContext ?contextStressor . ?contextStressor :hasId ?stressorId .
+    ?context :stressedBy ?stressor . 
+    }
+    OPTIONAL {
+        ?context :stressedByContext ?contextStressor . ?contextStressor :hasId ?stressor_id .
         ?contextStressor :hasTsMin ?tsMinStressor . ?contextStressor :hasTsMax ?tsMaxStressor .
     } .
     BIND( 
         (   
-            IF(?tsMaxStressor < ?tsMax && ?tsMinStressor < ?timestamp, ?tsMaxStressor - ?timestamp, 
-                IF(?tsMaxStressor > ?tsMax && ?tsMinStressor < ?timestamp, ?tsMax - ?timestamp,
-                    IF(?tsMaxStressor < ?tsMax && ?tsMinStressor > ?timestamp, ?tsMaxStressor - ?tsMinStressor, 
-                       IF(?tsMaxStressor > ?tsMax && ?tsMinStressor > ?timestamp, ?tsMax - ?tsMinStressor,0))))
+            IF(?tsMaxStressor <= ?tsMax && ?tsMinStressor <= ?timestamp, ?tsMaxStressor - ?timestamp, 
+                IF(?tsMaxStressor >= ?tsMax && ?tsMinStressor <= ?timestamp, ?tsMax - ?timestamp,
+                    IF(?tsMaxStressor <= ?tsMax && ?tsMinStressor >= ?timestamp, ?tsMaxStressor - ?tsMinStressor, 
+                       IF(?tsMaxStressor >= ?tsMax && ?tsMinStressor >= ?timestamp, ?tsMax - ?tsMinStressor,0))))
         ) AS ?shared_time
     ) .
     BIND (
@@ -139,7 +144,7 @@ WHERE {
     )  .
     OPTIONAL { ?context :hasEnvContext ?envContext . ?envContext :hasCondition ?cond } .
     BIND ( IF ( BOUND(?cond) , 1, 0) AS ?env_cond ) .
-    BIND ( IF ( BOUND(?stressorId),?stressorId,0) AS ?stId )
+    BIND ( IF ( BOUND(?stressor_id),?stressor_id,0) AS ?stId )
 }
 ORDER BY ?id ?timestamp
 """
@@ -147,22 +152,22 @@ ORDER BY ?id ?timestamp
 CQ8 = """
 PREFIX : <http://www.semanticweb.org/carlos/ontologies/2022/1/kaire#>
 SELECT 
-    ?locationId  ?date ?day ?hour ?id ?stress ?shared_time
+    ?location_id  ?date ?day ?hour ?id ?stress ?shared_time
 WHERE {
     ?context :hasId ?id . ?context a :Worker . ?context :targets ?worker . 
     ?context :hasTsMin ?timestamp . ?context :hasTsMax ?tsMax .
-    ?context :hasDayOfWeek ?day . ?context :hasHour ?hour .
-    ?context :hasStressIndex ?stress . ?context :hasLocationId ?locationId .
+    ?context :hasWeekday ?day . ?context :hasHour ?hour .
+    ?context :hasStressIndex ?stress . ?context :hasLocationId ?location_id .
     ?context :hasEnvContext ?envContext . ?envContext :hasTsDate ?date .
     ?envContext :hasTsMin ?tsMinEnv . ?envContext :hasTsMax ?tsMaxEnv .	
     BIND ( 
         (   
-            IF(?tsMaxEnv < ?tsMax && ?tsMinEnv < ?timestamp, ?tsMaxEnv - ?timestamp, 
-                IF(?tsMaxEnv > ?tsMax && ?tsMinEnv < ?timestamp, ?tsMax - ?timestamp,
-                    IF(?tsMaxEnv < ?tsMax && ?tsMinEnv > ?timestamp, ?tsMaxEnv - ?tsMinEnv, 
-                        IF(?tsMaxEnv > ?tsMax && ?tsMinEnv > ?timestamp, ?tsMax - ?tsMinEnv,0))))
+            IF(?tsMaxEnv <= ?tsMax && ?tsMinEnv <= ?timestamp, ?tsMaxEnv - ?timestamp, 
+                IF(?tsMaxEnv >= ?tsMax && ?tsMinEnv <= ?timestamp, ?tsMax - ?timestamp,
+                    IF(?tsMaxEnv <= ?tsMax && ?tsMinEnv >= ?timestamp, ?tsMaxEnv - ?tsMinEnv, 
+                        IF(?tsMaxEnv >= ?tsMax && ?tsMinEnv >= ?timestamp, ?tsMax - ?tsMinEnv,0))))
         ) AS ?shared_time
     )
 }
-ORDER BY ?locationId ?date ?day ?hour
+ORDER BY ?location_id ?date ?day ?hour
 """

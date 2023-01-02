@@ -13,7 +13,7 @@ class scatter:
 		ax.set_ylabel(self.yLabel, fontsize = 15)
 		ax.set_title(self.title, fontsize = 20)
 		targets = [0, 1]
-		colors = ['r', 'g']
+		colors = ['g', 'r']
 		for target, color in zip(targets,colors):
 			indicesToKeep = dataframe[val] == target
 			ax.scatter(dataframe.loc[indicesToKeep, x]
