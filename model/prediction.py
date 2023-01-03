@@ -18,7 +18,7 @@ class Predictor:
             self.df = pd.read_sql('SELECT id,stress,location_id,activity,timestamp,duration,day,hour,hr,rmssd,sdrr,stressor_id,shared_time,env_cond,classification,cond FROM context_history', conn)
         # Separating out the features and target
         #self.features = ['location_id','activity','duration','day','hour','hr','rmssd','sdrr','stressor_id','shared_time','env_cond']
-        self.features = ['stress','location_id','activity','duration','day','hour','stressor_id','shared_time','env_cond']
+        self.features = ['stress','location_id','activity','duration','day','hour','hr','rmssd','sdrr','hour','stressor_id','shared_time','env_cond']
         self.x = self.df.loc[:, self.features].values
         self.y = self.df.loc[:,['classification']].values
  
@@ -27,14 +27,14 @@ class Predictor:
         if self.static:
             url = "C:\\_Workspace\\Kaire\\python\\ds\\prediction_ds.csv"
             # load dataset into Pandas DataFrame
-            self.df = pd.read_csv(url, names=['id','stress','location_id','activity','day','hour','stressor_id','env_cond','shared_time'],skiprows=1)
+            self.df = pd.read_csv(url, names=['id','stress','location_id','activity','day','hour','stressor_id','env_cond','shared_time','classification'],skiprows=1)
         else:
             from mysqlDb import mysqlConn
             conn = mysqlConn()
             self.df = pd.read_sql('SELECT * FROM history', conn)
         # Separating out the features and target
         #self.features = ['stress','locationId','activity','duration','day','hour','hrv_mean','hrv_sd','stressorId','shared_time','env_cond']
-        self.features = ['location_id','activity','duration','day','hour','stressor_id','shared_time','env_cond']
+        self.features = ['location_id','activity','day','hour','stressor_id','env_cond','shared_time']
         self.x = self.df.loc[:, self.features].values
         self.y = self.df.loc[:,['classification']].values 
 
@@ -45,32 +45,44 @@ class Predictor:
 
     def reduce_dimension(self):
         from sklearn.decomposition import PCA
-        pca = PCA(n_components=1)
+        
+
+        #pca = PCA(n_components=1)
+        ##print(self.df)
+        #featuresa = ['duration','day','hour','shared_time']
+        #a = self.df.loc[:, featuresa].values
+        #featuresb = ['location_id','activity','stressor_id','env_cond']
+        #b = self.df.loc[:, featuresb].values
+        #featuresc = ['hr','rmssd','sdrr']
+        #c = self.df.loc[:, featuresc].values
+        #
+        #principalComponents = pca.fit_transform(a)
+        #a = pd.DataFrame(data = principalComponents, columns = ['principal component 1'])
+        #principalComponents = pca.fit_transform(b)
+        #b = pd.DataFrame(data = principalComponents, columns = ['principal component 2'])        
+        #principalComponents = pca.fit_transform(c)
+        #c = pd.DataFrame(data = principalComponents, columns = ['principal component 3'])        
+        #        
+        #self.x = pd.concat([a, b, c], axis = 1)
+        
+        #self.x = pd.DataFrame(data = d, columns = ['principal component 1', 'principal component 2', 'principal component 3'])
+        #self.x = pd.concat([self.x, self.df[['classification']]], axis = 1)
+        #print(self.x)
+        
+
+        pca = PCA(n_components=2)
+        principalComponents = pca.fit_transform(self.x)
+        self.x = pd.DataFrame(data = principalComponents
+                     , columns = ['principal component 1', 'principal component 2'])
+        
+        self.finalDf = pd.concat([self.x, self.df[['classification']]], axis = 1)
+        #from sklearn.model_selection import train_test_split
+        #self.x_trainrd, self.x_testrd, self.y_trainrd, self.y_testrd = train_test_split(self.x, self.y, test_size=0.3, shuffle = False, stratify = None) # if size = 0.3, 70% training and 30% test
+        #pca = PCA(n_components=2)
         #principalComponents = pca.fit_transform(self.x)
         #self.x = pd.DataFrame(data = principalComponents
         #             , columns = ['principal component 1', 'principal component 2'])
-
-        #self.finalDf = pd.concat([self.x, self.df[['classification']]], axis = 1)
-        #from sklearn.model_selection import train_test_split
-        #self.x_trainrd, self.x_testrd, self.y_trainrd, self.y_testrd = train_test_split(self.x, self.y, test_size=0.3, shuffle = False, stratify = None) # if size = 0.3, 70% training and 30% test
-        #pca = PCA(n_components=6)
-        #principalComponents = pca.fit_transform(self.x)
-        #self.x = pd.DataFrame(data = principalComponents
-         #            , columns = ['principal component 1', 'principal component 2','principal component 3', 'principal component 4','principal component 5', 'principal component 6'])
         
-        featuresa = ['duration','day','hour','shared_time']
-        a = self.df.loc[:, featuresa].values
-        featuresb = ['location_id','activity','stressor_id','env_cond']
-        b = self.df.loc[:, featuresb].values
-        principalComponents = pca.fit_transform(a)
-        a = pd.DataFrame(data = principalComponents, columns = ['principal component 1'])
-        principalComponents = pca.fit_transform(b)
-        b = pd.DataFrame(data = principalComponents, columns = ['principal component 2'])        
-        self.x = pd.concat([a, b], axis = 1)
-        #d = pca.fit_transform(c)
-        #self.x = pd.DataFrame(data = d, columns = ['principal component 1', 'principal component 2'])
-        #self.x = pd.concat([e, self.df[['classification']]], axis = 1)
-        #print(self.x)
 
     def split_dataset(self,size):
         #training dataset
@@ -193,7 +205,7 @@ class Predictor:
         from sklearn import metrics
 
         confusion_matrix = metrics.confusion_matrix(self.y_test, self.y_pred_svm)
-        cm_display = metrics.ConfusionMatrixDisplay(confusion_matrix = confusion_matrix, display_labels = [False, True])
+        cm_display = metrics.ConfusionMatrixDisplay(confusion_matrix = confusion_matrix, display_labels = ["non-stressor", "stressor"])
         cm_display.plot()
         cm_display.ax_.set_title("Confusion Matrix for SVM")
         plt.savefig("img/confusion_matrix_svm.png")
@@ -217,13 +229,13 @@ class Predictor:
         self.y = self.df.loc[:, self.features].values
         self.x = self.df.loc[:, ['timestamp']].values          
         # plot lines
-        plt.plot(self.x, self.y, label = ['duration','hrv','sdnn','shared_time'])
+        plt.plot(self.x, self.y, label = ['duration','rmssd','sdrr','shared_time'])
         plt.legend()
         plt.savefig("img/line_nonstd.png")
         plt.show()
         from sklearn.preprocessing import StandardScaler
         self.y = StandardScaler().fit_transform(self.y)
-        plt.plot(self.x, self.y, label = ['duration','hrv','sdnn','shared_time'])
+        plt.plot(self.x, self.y, label = ['duration','rmssd','sdrr','shared_time'])
         plt.legend()
         plt.savefig("img/line_std.png")
         plt.show()

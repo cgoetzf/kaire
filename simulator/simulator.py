@@ -143,10 +143,15 @@ class Simulator:
         df = df.drop(columns=['timestamp','hr','rmssd','sdrr','cond'])
 
         df = df.groupby(['id','stress','location_id','activity','day','hour','stressor_id','env_cond'])['shared_time'].mean().reset_index()
-        print("#")
-        print(df)
-        print("#")
         df = df.drop_duplicates()
+        for i,row in df.iterrows():
+            if int(row['stress']) == 1:
+                if (int(row['stressor_id']) == 8) or (int(row['id']) == 5 and int(row['location_id']) == 2) or (int(row['id']) == 6 and int(row['location_id']) == 3) or (int(row['id']) == 3 and int(row['location_id']) == 3 and (int(row['hour']) <= 9) and (int(row['day']) == 2 or int(row['day']) == 5)):
+                   df._set_value(i,'classification',1)
+                else:
+                    df._set_value(i,'classification',1)
+            else:
+                df._set_value(i,'classification',0)
         
         #df['duration']=np.floor(df.duration).astype(int)
         df['shared_time']=np.floor(df.shared_time).astype(int)
@@ -158,10 +163,28 @@ class Simulator:
         df.insert(13,"classification", " ")
         for i,row in df.iterrows():
             if int(row['stress']) == 1:
-                if (int(row['stressor_id']) == 8) or (int(row['id']) == 5 and int(row['location_id']) == 2) or (int(row['id']) == 6 and int(row['location_id']) == 3) or (int(row['id']) == 3 and int(row['location_id']) == 3 and (int(row['hour']) <= 9) and (int(row['day']) == 2 or int(row['day']) == 5)):
+                if (int(row['stressor_id']) == 8) or (int(row['id']) == 5 and int(row['location_id']) == 2) or (int(row['id']) == 6 and int(row['location_id']) == 3) or (int(row['id']) == 3 and int(row['location_id']) == 3 and (int(row['day']) == 2 or int(row['day']) == 5)):
                    df._set_value(i,'classification',1)
                 else:
                     df._set_value(i,'classification',1)
             else:
                 df._set_value(i,'classification',0)
         df.to_csv(gb.DATASET_PATH+"training_ds.csv", index=False)
+
+    def data_gsi_sim(self):
+        print(f'Creating dataset for GSI! \n')
+        df = pd.read_csv(gb.DATASET_PATH+"group_ds.csv", names=['location_id','timestamp','day','hour','id','stress','shared_time'],skiprows=1) 
+        df = df.drop(columns=['id','shared_time'])
+        df = df.drop_duplicates()       
+        df.insert(5,"classification", " ")
+        for i,row in df.iterrows():
+            if int(row['stress']) == 1:
+                if (int(row['location_id']) == 3 and (int(row['hour']) <= 9) and (int(row['day']) == 1 or int(row['day']) == 5)) or (int(row['location_id']) == 6 and ((int(row['day']) == 1 and int(row['hour']) == 10) or (int(row['day']) == 2 and int(row['hour']) == 10) or (int(row['day']) == 2 and int(row['hour']) == 14) or (int(row['day']) == 3 and int(row['hour']) == 14) or (int(row['day']) == 4 and int(row['hour']) == 14) or (int(row['day']) == 5 and int(row['hour']) == 15))):
+                   df._set_value(i,'classification',1)
+                else:
+                    df._set_value(i,'classification',1)
+            else:
+                df._set_value(i,'classification',0)
+        df = df.groupby(['location_id','timestamp','day','hour']).agg({'stress':'sum','classification':'sum'}).reset_index()
+        df = df.drop(columns=['stress'])
+        df.to_csv(gb.DATASET_PATH+"group_ds_sim.csv", index=False)

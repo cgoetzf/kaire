@@ -122,6 +122,5 @@ class Person:
         total_steps = int(avg_distance / step)
         self.steps += total_steps
         walking_time = int(rnd.gauss((total_steps * 10), 0.2))
-        self.locationId = 0
         self.locationId = destiny
         return walking_time
