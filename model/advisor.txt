@@ -1,4 +1,0 @@
-id,stressor_id,location,day,hour,activity,env_cond,probability
-6,8,6,5,14,-1,0,75.35
-6,5,6,5,14,-1,0,34.45
-6,7,6,5,14,-1,0,12.14
