@@ -1,16 +1,15 @@
-# Kaire
-## an intelligent model to identify and predict work-related stressors on industrial settings
+# Kaire: an intelligent model to identify and predict work-related stressors on industrial settings
 
-## Python dependencies
+## Configuration
+### Python dependencies
 
-pip install numpy__
-pip install pandas__
-pip install influxdb-client__
-pip install -U scikit-learn__
-pip install owlready2__
-pip install mysql-connector-python__
-pip install matplotlib__
-pip install SQLAlchemy__
-pip install SimPy__
-pip install tabulate__
-
+pip install numpy<br />
+pip install pandas<br />
+pip install influxdb-client<br />
+pip install -U scikit-learn<br />
+pip install owlready2<br />
+pip install mysql-connector-python<br />
+pip install matplotlib<br />
+pip install SQLAlchemy<br />
+pip install SimPy<br />
+pip install tabulate<br />
